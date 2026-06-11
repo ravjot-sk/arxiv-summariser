@@ -36,9 +36,19 @@ actor GemmaEngine {
             generateParameters: GenerateParameters(maxTokens: 512, temperature: 0.3)
         )
         let text = try await session.respond(to: prompt)
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Self.stripSpecialTokens(text)
         #else
         throw GemmaError.unavailable
         #endif
+    }
+
+    /// Defensive: strip any chat special tokens the model emits as literal text
+    /// (belt-and-suspenders alongside `extraEOSTokens` at load time).
+    private static func stripSpecialTokens(_ text: String) -> String {
+        var cleaned = text
+        for token in ["<end_of_turn>", "<start_of_turn>", "<eos>", "<bos>", "<pad>"] {
+            cleaned = cleaned.replacingOccurrences(of: token, with: "")
+        }
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -43,9 +43,13 @@ final class GemmaModelManager: ObservableObject {
         if isReady { return }
         state = .downloading(0)
         do {
-            // ⚠️ Verify against the installed mlx-swift-examples version — the
-            // factory/loader API has changed across releases.
-            let configuration = ModelConfiguration(id: GemmaConfig.modelID)
+            // Gemma's turn terminator is `<end_of_turn>`. Loaded by raw id it
+            // isn't registered as a stop token, so generation runs away and emits
+            // it as literal text — register it explicitly as an extra EOS token.
+            let configuration = ModelConfiguration(
+                id: GemmaConfig.modelID,
+                extraEOSTokens: ["<end_of_turn>"]
+            )
             let loaded = try await LLMModelFactory.shared.loadContainer(configuration: configuration) { progress in
                 Task { @MainActor in self.state = .downloading(progress.fractionCompleted) }
             }
