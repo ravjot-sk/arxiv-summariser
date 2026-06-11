@@ -189,7 +189,7 @@ struct SummaryService {
 
     /// Summarize a single paper. Active LLM → Apple → trimmed abstract.
     func summarizePaper(_ paper: ArxivPaper) async -> SummaryResult {
-        let prompt = "Summarize this paper in 1–2 plain-language sentences.\n\nTitle: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
+        let prompt = "Summarize this paper in a few sentences for a researcher.\n\nTitle: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
         if let text = await tryLLM(system: Self.paperSystemPrompt, prompt: prompt, asJSON: false) {
             return SummaryResult(text: text, generatedByAI: true)
         }
@@ -201,8 +201,8 @@ struct SummaryService {
             "[\(index)] Title: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
         }.joined(separator: "\n\n")
         let prompt = """
-        Summarize each paper below in 1–2 plain-language sentences for a curious \
-        non-specialist. Respond with ONLY a JSON array; each element must be \
+        Summarize each paper below in a few sentences for a professional \
+        researcher. Respond with ONLY a JSON array; each element must be \
         {"index": <the bracketed number>, "summary": "<your summary>"}, one per paper.
 
         \(list)
