@@ -7,6 +7,8 @@ struct SettingsView: View {
 
     @State private var notificationTime = Date.now
     @State private var aiStatus: AIGenerationStatus = .checking
+    @AppStorage("summaryEngine") private var engineRaw = SummaryEngine.automatic.rawValue
+    @ObservedObject private var gemma = GemmaModelManager.shared
 
     var body: some View {
         NavigationStack {
@@ -65,8 +67,14 @@ struct SettingsView: View {
                 }
 
                 Section("Summaries") {
+                    Picker("Engine", selection: engineBinding) {
+                        ForEach(SummaryEngine.allCases) { engine in
+                            Text(engine.displayName).tag(engine)
+                        }
+                    }
+
                     HStack {
-                        Label("AI summaries", systemImage: "sparkles")
+                        Label("Status", systemImage: "sparkles")
                         Spacer()
                         switch aiStatus {
                         case .checking:
@@ -87,11 +95,21 @@ struct SettingsView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+                    if case .working(.gemma) = aiStatus {
+                        Text("Runs fully on your device; nothing is sent anywhere.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    gemmaModelRow
                 }
             }
             .navigationTitle("Settings")
             .task {
                 aiStatus = await SummaryService.shared.probeGeneration()
+            }
+            .onChange(of: engineRaw) {
+                Task { aiStatus = await SummaryService.shared.probeGeneration() }
             }
             .onAppear {
                 notificationTime = Calendar.current.date(
@@ -100,6 +118,50 @@ struct SettingsView: View {
                     second: 0,
                     of: .now
                 ) ?? .now
+            }
+        }
+    }
+
+    private var engineBinding: Binding<SummaryEngine> {
+        Binding(
+            get: { SummaryEngine(rawValue: engineRaw) ?? .automatic },
+            set: { engineRaw = $0.rawValue }
+        )
+    }
+
+    /// On-device Gemma model state + download controls.
+    @ViewBuilder
+    private var gemmaModelRow: some View {
+        switch gemma.state {
+        case .unavailable:
+            Label("On-device Gemma needs the MLX package and a physical device.", systemImage: "iphone.slash")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        case .notDownloaded:
+            Button {
+                Task { await gemma.prepare() }
+            } label: {
+                Label("Download \(GemmaConfig.displayName) (\(GemmaConfig.approxDownloadSize))", systemImage: "arrow.down.circle")
+            }
+        case .downloading(let progress):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Downloading \(GemmaConfig.displayName)… \(Int(progress * 100))%")
+                    .font(.footnote)
+                ProgressView(value: progress)
+            }
+        case .ready:
+            HStack {
+                Label("\(GemmaConfig.displayName) ready", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Spacer()
+                Button("Delete", role: .destructive) { gemma.delete() }
+                    .font(.footnote)
+            }
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message).font(.footnote).foregroundStyle(.red)
+                Button("Retry") { Task { await gemma.prepare() } }
+                    .font(.footnote)
             }
         }
     }
