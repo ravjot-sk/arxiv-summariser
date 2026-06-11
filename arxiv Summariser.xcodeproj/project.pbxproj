@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4BC06D362FDAC5FB00973216 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D352FDAC5FB00973216 /* MLXLLM */; };
+		4BC06D382FDAC5FB00973216 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D372FDAC5FB00973216 /* MLXLMCommon */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		4BEB11DC2FC7A3280032FDC3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4BC06D382FDAC5FB00973216 /* MLXLMCommon in Frameworks */,
+				4BC06D362FDAC5FB00973216 /* MLXLLM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = "arxiv Summariser";
 			packageProductDependencies = (
+				4BC06D352FDAC5FB00973216 /* MLXLLM */,
+				4BC06D372FDAC5FB00973216 /* MLXLMCommon */,
 			);
 			productName = "arxiv Summariser";
 			productReference = 4BEB11CE2FC7A3260032FDC3 /* arxiv Summariser.app */;
@@ -195,6 +204,9 @@
 			);
 			mainGroup = 4BEB11C52FC7A3260032FDC3;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4BEB11CF2FC7A3260032FDC3 /* Products */;
 			projectDirPath = "";
@@ -580,6 +592,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-examples";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.29.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4BC06D352FDAC5FB00973216 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXLLM;
+		};
+		4BC06D372FDAC5FB00973216 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			productName = MLXLMCommon;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4BEB11C62FC7A3260032FDC3 /* Project object */;
 }
