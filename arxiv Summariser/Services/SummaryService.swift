@@ -14,13 +14,15 @@ enum AIAvailability {
     case unavailable(String)
 }
 
-/// Which engine produces summaries.
+/// Which engine produced summaries.
 enum SummaryProvider {
+    case gemma
     case gemini
     case onDevice
 
     var displayName: String {
         switch self {
+        case .gemma: return "On-device Gemma"
         case .gemini: return "Gemini"
         case .onDevice: return "Apple Intelligence"
         }
@@ -35,16 +37,13 @@ enum AIGenerationStatus {
     case unavailable(String)
 }
 
-/// Facade over the active summarization backend: Google Gemini when an API key
-/// is configured, otherwise the on-device FoundationModels model, otherwise
-/// plain trimmed abstracts.
+/// Facade over the active summarization backend. Routing follows the user's
+/// `SummaryPreferences.engine`: on-device Gemma (MLX) → Gemini (cloud) → Apple
+/// FoundationModels → plain trimmed abstracts, with graceful fallback.
 struct SummaryService {
     static let shared = SummaryService()
 
     private let gemini = GeminiClient.shared
-
-    /// Gemini is used whenever an API key has been provided in `GeminiConfig`.
-    private var useGemini: Bool { GeminiConfig.isConfigured }
 
     private static let paperSystemPrompt = """
     You summarize research papers for a curious non-specialist in one or two \
@@ -52,7 +51,41 @@ struct SummaryService {
     not in the abstract.
     """
 
-    // MARK: - On-device availability
+    // MARK: - LLM routing
+
+    /// Ordered hosted/on-device LLM backends to try for the current preference.
+    /// (Apple FoundationModels and the abstract fallback are handled separately.)
+    private func llmChain() -> [SummaryProvider] {
+        switch SummaryPreferences.engine {
+        case .gemma:     return [.gemma, .gemini]   // prefer Gemma, Gemini as a net
+        case .gemini:    return [.gemini]
+        case .apple:     return []                  // skip → Apple path below
+        case .automatic: return [.gemma, .gemini]
+        }
+    }
+
+    /// Generate text from the first available backend in the chain, else nil.
+    private func tryLLM(system: String, prompt: String, asJSON: Bool) async -> String? {
+        for provider in llmChain() {
+            switch provider {
+            case .gemma:
+                if await GemmaEngine.shared.isReady,
+                   let text = try? await GemmaEngine.shared.generate(system: system, prompt: prompt, asJSON: asJSON) {
+                    return text
+                }
+            case .gemini:
+                if GeminiConfig.isConfigured,
+                   let text = try? await gemini.generate(system: system, prompt: prompt, asJSON: asJSON) {
+                    return text
+                }
+            case .onDevice:
+                break
+            }
+        }
+        return nil
+    }
+
+    // MARK: - On-device (Apple) availability
 
     var availability: AIAvailability {
         #if canImport(FoundationModels)
@@ -75,17 +108,47 @@ struct SummaryService {
 
     // MARK: - Status probe (Settings)
 
-    /// Confirms the active provider can actually run a generation here.
     func probeGeneration() async -> AIGenerationStatus {
-        if useGemini {
-            do {
-                _ = try await gemini.generate(system: "Reply concisely.", prompt: "Reply with the single word: OK", asJSON: false)
-                return .working(.gemini)
-            } catch {
-                return .failing("Couldn't reach Gemini — check the API key and your connection. Falling back to the on-device model or plain abstracts.")
+        let pref = SummaryPreferences.engine
+
+        // Gemma (on-device) — when selected or automatic.
+        if pref == .gemma || pref == .automatic {
+            if await GemmaEngine.shared.isReady,
+               (try? await GemmaEngine.shared.generate(system: "Reply concisely.", prompt: "Reply OK", asJSON: false)) != nil {
+                return .working(.gemma)
+            }
+            if pref == .gemma {
+                let manager = GemmaModelManager.shared
+                if !(await manager.isMLXAvailable) {
+                    return .failing("On-device Gemma needs a physical device (the Simulator can't run it).")
+                }
+                if (await manager.workingID) != nil {
+                    return .failing("The Gemma model is still loading…")
+                }
+                if let failure = await manager.failure {
+                    return .failing(failure)
+                }
+                let active = await manager.activeModelID
+                if !(await manager.isDownloaded(active)) {
+                    return .failing("Download a model under Settings → On-device models to use Gemma.")
+                }
+                return .failing("The Gemma model isn't loaded yet — open Settings, or try again in a moment.")
             }
         }
 
+        // Gemini (cloud).
+        if pref == .gemini || pref == .automatic || pref == .gemma {
+            if GeminiConfig.isConfigured {
+                if (try? await gemini.generate(system: "Reply concisely.", prompt: "Reply with the single word: OK", asJSON: false)) != nil {
+                    return .working(.gemini)
+                }
+                if pref == .gemini {
+                    return .failing("Couldn't reach Gemini — check the API key and your connection.")
+                }
+            }
+        }
+
+        // Apple FoundationModels.
         if case .unavailable(let reason) = availability {
             return .unavailable(reason)
         }
@@ -105,14 +168,12 @@ struct SummaryService {
 
     // MARK: - Per-paper summaries (batched)
 
-    /// Summaries for a set of papers, keyed by `paper.id`. Uses one batched
-    /// Gemini request when configured; otherwise summarizes each paper with the
-    /// on-device model (or a trimmed abstract).
+    /// Summaries for a set of papers, keyed by `paper.id`. One batched LLM request
+    /// when a hosted/on-device LLM is active; otherwise per-paper Apple/abstract.
     func summaries(for papers: [ArxivPaper]) async -> [String: SummaryResult] {
         guard !papers.isEmpty else { return [:] }
 
-        if useGemini, var batched = await geminiBatchSummaries(papers) {
-            // Fill any papers the batch missed with the on-device/abstract path.
+        if var batched = await llmBatchSummaries(papers) {
             for paper in papers where batched[paper.id] == nil {
                 batched[paper.id] = await onDeviceSummarizePaper(paper)
             }
@@ -126,21 +187,42 @@ struct SummaryService {
         return result
     }
 
-    /// Summarize a single paper. Gemini → on-device → trimmed abstract.
+    /// Summarize a single paper. Active LLM → Apple → trimmed abstract.
     func summarizePaper(_ paper: ArxivPaper) async -> SummaryResult {
-        if useGemini {
-            let prompt = "Summarize this paper in 1–2 plain-language sentences.\n\nTitle: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
-            if let text = try? await gemini.generate(system: Self.paperSystemPrompt, prompt: prompt, asJSON: false) {
-                return SummaryResult(text: text, generatedByAI: true)
-            }
+        let prompt = "Summarize this paper in a few sentences for a researcher.\n\nTitle: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
+        if let text = await tryLLM(system: Self.paperSystemPrompt, prompt: prompt, asJSON: false) {
+            return SummaryResult(text: text, generatedByAI: true)
         }
         return await onDeviceSummarizePaper(paper)
     }
 
+    private func llmBatchSummaries(_ papers: [ArxivPaper]) async -> [String: SummaryResult]? {
+        let list = papers.enumerated().map { index, paper in
+            "[\(index)] Title: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
+        }.joined(separator: "\n\n")
+        let prompt = """
+        Summarize each paper below in a few sentences for a professional \
+        researcher. Respond with ONLY a JSON array; each element must be \
+        {"index": <the bracketed number>, "summary": "<your summary>"}, one per paper.
+
+        \(list)
+        """
+        guard let json = await tryLLM(system: Self.paperSystemPrompt, prompt: prompt, asJSON: true),
+              let items = Self.decodeBatch(json) else {
+            return nil
+        }
+
+        var result: [String: SummaryResult] = [:]
+        for item in items where item.index >= 0 && item.index < papers.count {
+            let text = item.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            result[papers[item.index].id] = SummaryResult(text: text, generatedByAI: true)
+        }
+        return result.isEmpty ? nil : result
+    }
+
     // MARK: - Overview (reduce)
 
-    /// Build an overview by reducing over already-summarized papers. Gemini →
-    /// on-device → plain joined list.
     func combineSummaries(_ items: [(title: String, summary: String)], scope: String) async -> SummaryResult {
         guard !items.isEmpty else {
             return SummaryResult(text: "No papers to summarize for \(scope) right now.", generatedByAI: false)
@@ -156,7 +238,7 @@ struct SummaryService {
             .joined(separator: "\n")
         let ask = "Here are short summaries of today's papers on \(scope). Write 3–5 short, plain-language bullet points capturing the key themes and most notable findings. Respond with only the bullets, one per line starting with \"- \", with no introductory or closing sentence:\n\n\(body)"
 
-        if useGemini, let text = try? await gemini.generate(system: system, prompt: ask, asJSON: false) {
+        if let text = await tryLLM(system: system, prompt: ask, asJSON: false) {
             return SummaryResult(text: text, generatedByAI: true)
         }
 
@@ -173,33 +255,6 @@ struct SummaryService {
         #endif
         let text = items.map { "• \($0.title)\n\($0.summary)" }.joined(separator: "\n\n")
         return SummaryResult(text: text, generatedByAI: false)
-    }
-
-    // MARK: - Gemini batch helper
-
-    private func geminiBatchSummaries(_ papers: [ArxivPaper]) async -> [String: SummaryResult]? {
-        let list = papers.enumerated().map { index, paper in
-            "[\(index)] Title: \(paper.cleanedTitle)\nAbstract: \(paper.cleanedSummary)"
-        }.joined(separator: "\n\n")
-        let prompt = """
-        Summarize each paper below in 1–2 plain-language sentences for a curious \
-        non-specialist. Respond with ONLY a JSON array; each element must be \
-        {"index": <the bracketed number>, "summary": "<your summary>"}, one per paper.
-
-        \(list)
-        """
-        guard let json = try? await gemini.generate(system: Self.paperSystemPrompt, prompt: prompt, asJSON: true),
-              let items = Self.decodeBatch(json) else {
-            return nil
-        }
-
-        var result: [String: SummaryResult] = [:]
-        for item in items where item.index >= 0 && item.index < papers.count {
-            let text = item.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            result[papers[item.index].id] = SummaryResult(text: text, generatedByAI: true)
-        }
-        return result.isEmpty ? nil : result
     }
 
     private struct BatchItem: Decodable {
@@ -220,7 +275,7 @@ struct SummaryService {
         return try? JSONDecoder().decode([BatchItem].self, from: data)
     }
 
-    // MARK: - On-device / abstract fallback
+    // MARK: - On-device (Apple) / abstract fallback
 
     private func onDeviceSummarizePaper(_ paper: ArxivPaper) async -> SummaryResult {
         #if canImport(FoundationModels)

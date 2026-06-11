@@ -18,6 +18,12 @@ struct RootView: View {
         .preferredColorScheme(selectedTopics?.appearance.colorScheme ?? nil)
         .task {
             _ = ensureTopics()
+            // Auto-load the chosen on-device model if it's already downloaded,
+            // so Gemma summaries work without re-tapping "Download" each launch.
+            let engine = SummaryPreferences.engine
+            if engine == .gemma || engine == .automatic {
+                await GemmaModelManager.shared.autoLoadActiveIfDownloaded()
+            }
         }
     }
 

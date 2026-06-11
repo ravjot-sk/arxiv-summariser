@@ -7,6 +7,9 @@ struct SettingsView: View {
 
     @State private var notificationTime = Date.now
     @State private var aiStatus: AIGenerationStatus = .checking
+    @AppStorage("summaryEngine") private var engineRaw = SummaryEngine.automatic.rawValue
+    @ObservedObject private var gemma = GemmaModelManager.shared
+    @State private var appDataBytes: Int64 = 0
 
     var body: some View {
         NavigationStack {
@@ -65,8 +68,14 @@ struct SettingsView: View {
                 }
 
                 Section("Summaries") {
+                    Picker("Engine", selection: engineBinding) {
+                        ForEach(SummaryEngine.allCases) { engine in
+                            Text(engine.displayName).tag(engine)
+                        }
+                    }
+
                     HStack {
-                        Label("AI summaries", systemImage: "sparkles")
+                        Label("Status", systemImage: "sparkles")
                         Spacer()
                         switch aiStatus {
                         case .checking:
@@ -87,11 +96,30 @@ struct SettingsView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+                    if case .working(.gemma) = aiStatus {
+                        Text("Runs fully on your device; nothing is sent anywhere.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
+                onDeviceModelsSection
             }
             .navigationTitle("Settings")
             .task {
                 aiStatus = await SummaryService.shared.probeGeneration()
+            }
+            .task(id: gemma.modelsBytes) {
+                appDataBytes = GemmaModelManager.directorySize(URL(fileURLWithPath: NSHomeDirectory()))
+            }
+            .onChange(of: engineRaw) {
+                Task {
+                    let engine = SummaryEngine(rawValue: engineRaw) ?? .automatic
+                    if engine == .gemma || engine == .automatic {
+                        await gemma.autoLoadActiveIfDownloaded()
+                    }
+                    aiStatus = await SummaryService.shared.probeGeneration()
+                }
             }
             .onAppear {
                 notificationTime = Calendar.current.date(
@@ -102,6 +130,106 @@ struct SettingsView: View {
                 ) ?? .now
             }
         }
+    }
+
+    private var engineBinding: Binding<SummaryEngine> {
+        Binding(
+            get: { SummaryEngine(rawValue: engineRaw) ?? .automatic },
+            set: { engineRaw = $0.rawValue }
+        )
+    }
+
+    // MARK: - On-device models
+
+    @ViewBuilder
+    private var onDeviceModelsSection: some View {
+        Section("On-device models") {
+            if gemma.isMLXAvailable {
+                ForEach(GemmaCatalog.models) { model in
+                    modelRow(model)
+                }
+                HStack {
+                    Text("Downloaded models")
+                    Spacer()
+                    Text(Self.formatBytes(gemma.modelsBytes)).foregroundStyle(.secondary)
+                }
+                HStack {
+                    Text("App storage")
+                    Spacer()
+                    Text(appDataBytes > 0 ? Self.formatBytes(appDataBytes) : "—").foregroundStyle(.secondary)
+                }
+                if let failure = gemma.failure {
+                    Text(failure).font(.footnote).foregroundStyle(.red)
+                }
+            } else {
+                Label("On-device models need the MLX package and a physical device (not the Simulator).", systemImage: "iphone.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func modelRow(_ model: GemmaModelInfo) -> some View {
+        let isWorking = gemma.workingID == model.id
+        let isDownloaded = gemma.isDownloaded(model.id)
+        let isActive = gemma.loadedModelID == model.id
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(model.name)
+                        if isActive {
+                            Text("Active")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.green.opacity(0.2), in: Capsule())
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    Text(subtitle(model, isWorking: isWorking, isDownloaded: isDownloaded))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isWorking {
+                    ProgressView()
+                } else if isDownloaded {
+                    HStack(spacing: 16) {
+                        if !isActive {
+                            Button("Use") { Task { await gemma.use(model.id) } }
+                                .buttonStyle(.borderless)
+                        }
+                        Button(role: .destructive) { gemma.delete(model.id) } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    .disabled(gemma.workingID != nil)
+                } else {
+                    Button { Task { await gemma.use(model.id) } } label: {
+                        Label("Get", systemImage: "arrow.down.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(gemma.workingID != nil)
+                }
+            }
+            if isWorking {
+                ProgressView(value: gemma.progress)
+            }
+        }
+    }
+
+    private func subtitle(_ model: GemmaModelInfo, isWorking: Bool, isDownloaded: Bool) -> String {
+        if isWorking { return "Working… \(Int(gemma.progress * 100))%" }
+        if isDownloaded { return "On device · \(Self.formatBytes(gemma.bytes(for: model.id)))" }
+        return "Not downloaded · \(model.approxSize)"
+    }
+
+    private static func formatBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     private var aiStatusDetail: String? {
