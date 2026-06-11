@@ -118,13 +118,21 @@ struct SummaryService {
                 return .working(.gemma)
             }
             if pref == .gemma {
-                switch await GemmaModelManager.shared.state {
-                case .downloading: return .failing("The Gemma model is still downloading…")
-                case .failed(let message): return .failing(message)
-                case .notDownloaded, .unavailable:
-                    return .failing("Download the Gemma model in Settings (or run on a device) to use on-device summaries.")
-                case .ready: break
+                let manager = GemmaModelManager.shared
+                if !(await manager.isMLXAvailable) {
+                    return .failing("On-device Gemma needs a physical device (the Simulator can't run it).")
                 }
+                if (await manager.workingID) != nil {
+                    return .failing("The Gemma model is still loading…")
+                }
+                if let failure = await manager.failure {
+                    return .failing(failure)
+                }
+                let active = await manager.activeModelID
+                if !(await manager.isDownloaded(active)) {
+                    return .failing("Download a model under Settings → On-device models to use Gemma.")
+                }
+                return .failing("The Gemma model isn't loaded yet — open Settings, or try again in a moment.")
             }
         }
 

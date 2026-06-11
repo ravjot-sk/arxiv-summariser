@@ -1,17 +1,29 @@
 import Foundation
 
-/// On-device Gemma (via MLX Swift) configuration.
+/// A downloadable on-device model (MLX 4-bit Gemma instruct).
 ///
-/// The model is **downloaded on first use** from Hugging Face into the app
-/// container (a usable 4-bit Gemma is too large to embed in the app binary).
-enum GemmaConfig {
-    /// Hugging Face repo id for an MLX 4-bit Gemma instruct model.
-    /// Prefer a NON-gated `mlx-community` re-quant so no HF token / license click
-    /// is needed. ⚠️ Confirm this exact id exists on Hugging Face before relying
-    /// on it (browse https://huggingface.co/mlx-community?search=gemma).
-    static let modelID = "mlx-community/gemma-3-1b-it-4bit"
+/// Named `GemmaModelInfo` (not `GemmaModel`) to avoid clashing with the model
+/// type of the same name inside the `MLXLLM` module.
+struct GemmaModelInfo: Identifiable, Hashable {
+    /// Hugging Face repo id, e.g. "mlx-community/gemma-3-1b-it-4bit".
+    let id: String
+    let name: String
+    /// Rough download size, for the UI.
+    let approxSize: String
+}
 
-    /// Human-facing label and rough on-disk size for the download UI.
-    static let displayName = "Gemma 3 1B (4-bit)"
-    static let approxDownloadSize = "~0.7 GB"
+/// The models the user can download and switch between. All are non-gated
+/// `mlx-community` 4-bit re-quants small enough for a phone. Add more ids here
+/// (verify they exist at huggingface.co/mlx-community before shipping).
+enum GemmaCatalog {
+    static let models: [GemmaModelInfo] = [
+        GemmaModelInfo(id: "mlx-community/gemma-3-1b-it-4bit", name: "Gemma 3 1B", approxSize: "≈ 0.7 GB"),
+        GemmaModelInfo(id: "mlx-community/gemma-1.1-2b-it-4bit", name: "Gemma 1.1 2B", approxSize: "≈ 1.4 GB"),
+    ]
+
+    static var `default`: GemmaModelInfo { models[0] }
+
+    static func info(for id: String) -> GemmaModelInfo? {
+        models.first { $0.id == id }
+    }
 }
