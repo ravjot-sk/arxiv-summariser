@@ -28,23 +28,15 @@ actor GemmaEngine {
         // Keep MLX's GPU cache modest so we don't trip iOS memory limits.
         MLX.GPU.set(cacheLimit: 64 * 1024 * 1024)
 
-        let messages: [[String: String]] = [
-            ["role": "system", "content": system],
-            ["role": "user", "content": prompt],
-        ]
-
-        // ⚠️ Verify this call against the installed mlx-swift-examples version —
-        // the generate/UserInput API has shifted across releases. The shape below
-        // matches the MLXLMCommon `perform { context in … generate … }` pattern.
-        let result = try await container.perform { context in
-            let input = try await context.processor.prepare(input: UserInput(messages: messages))
-            return try MLXLMCommon.generate(
-                input: input,
-                parameters: GenerateParameters(temperature: 0.3),
-                context: context
-            ) { _ in .more }
-        }
-        return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        // High-level MLXLMCommon API: a fresh ChatSession per call (independent
+        // summaries, no carried-over chat context), system prompt as instructions.
+        let session = ChatSession(
+            container,
+            instructions: system,
+            generateParameters: GenerateParameters(maxTokens: 512, temperature: 0.3)
+        )
+        let text = try await session.respond(to: prompt)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
         #else
         throw GemmaError.unavailable
         #endif
