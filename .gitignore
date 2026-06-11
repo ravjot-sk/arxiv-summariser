@@ -1,0 +1,19 @@
+# Secrets — confidential keys, never commit
+Secrets.swift
+
+# macOS
+.DS_Store
+
+# Xcode — user-specific state
+**/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Xcode — build output
+DerivedData/
+build/
+*.xcarchive
+
+# Swift Package Manager
+.swiftpm/
+.build/

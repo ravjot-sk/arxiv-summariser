@@ -2,19 +2,13 @@ import Foundation
 
 /// Configuration for the hosted Google Gemini summarizer.
 ///
-/// 🔑 To switch summaries from the slow on-device model to Gemini, paste your
-/// API key into `apiKey` below. Get a key at https://aistudio.google.com/apikey.
-/// Leave it empty to keep using the on-device model.
-///
-/// ⚠️ Don't commit your real key. This project isn't a git repo today; if you
-/// initialize one, either keep this file untracked
-/// (`git update-index --skip-worktree`) or move the key out of source.
+/// 🔑 The API key lives in `Secrets.swift` (gitignored, not in this file). To
+/// switch summaries to Gemini, set `Secrets.geminiAPIKey`. Leave it empty to keep
+/// using the on-device model.
 enum GeminiConfig {
 
-    // ┌─────────────────────────────────────────────────────────────────┐
-    // │  PUT YOUR GEMINI API KEY HERE                                     │
-    // └─────────────────────────────────────────────────────────────────┘
-    static let apiKey = ""
+    /// Provided via the gitignored `Secrets.swift` so the key never enters source control.
+    static let apiKey = Secrets.geminiAPIKey
 
     /// The Gemini model id. Confirm the exact string in AI Studio and adjust if
     /// needed (e.g. "gemini-flash-lite-latest").
