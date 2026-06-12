@@ -21,6 +21,15 @@ actor GemmaEngine {
     }
 
     func generate(system: String, prompt: String, asJSON: Bool) async throws -> String {
+        // Gemma 4 models run through their own pipeline (the MLXLLM text path
+        // can't load them). It applies the chat template + stop tokens itself.
+        #if canImport(Gemma4Swift)
+        if await GemmaModelManager.shared.hasGemma4Loaded {
+            let text = try await GemmaModelManager.shared.gemma4Generate(system: system, prompt: prompt)
+            return Self.stripSpecialTokens(text)
+        }
+        #endif
+
         #if canImport(MLXLLM)
         guard let container = await GemmaModelManager.shared.loadedContainer() else {
             throw GemmaError.notReady

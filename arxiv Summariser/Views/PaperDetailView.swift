@@ -3,6 +3,10 @@ import SwiftUI
 struct PaperDetailView: View {
     let paper: ArxivPaper
 
+    /// Whether arXiv serves an HTML rendering of this paper (checked on appear).
+    @State private var htmlAvailable = false
+    @State private var showHTML = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -37,6 +41,13 @@ struct PaperDetailView: View {
                             Label("PDF", systemImage: "doc.richtext")
                         }
                     }
+                    if htmlAvailable {
+                        Button {
+                            showHTML = true
+                        } label: {
+                            Label("HTML", systemImage: "doc.text")
+                        }
+                    }
                 }
                 .font(.subheadline)
 
@@ -46,5 +57,15 @@ struct PaperDetailView: View {
         }
         .navigationTitle("Paper")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showHTML) {
+            if let html = paper.htmlURL {
+                SafariView(url: html)
+                    .ignoresSafeArea()
+            }
+        }
+        .task {
+            guard let html = paper.htmlURL else { return }
+            htmlAvailable = await ArxivHTMLCheck.shared.isAvailable(html)
+        }
     }
 }

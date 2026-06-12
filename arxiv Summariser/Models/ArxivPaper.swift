@@ -16,6 +16,17 @@ struct ArxivPaper: Identifiable, Codable, Hashable {
         authors.joined(separator: ", ")
     }
 
+    /// arXiv's HTML rendering of the paper. Not every paper has one (conversion
+    /// can fail or be missing) — check with `ArxivHTMLCheck` before showing UI.
+    var htmlURL: URL? {
+        var s = absURL.absoluteString.replacingOccurrences(of: "/abs/", with: "/html/")
+        if s.hasPrefix("http://") {                       // the API returns http URLs
+            s = "https://" + s.dropFirst("http://".count)
+        }
+        guard s.contains("/html/") else { return nil }
+        return URL(string: s)
+    }
+
     var cleanedSummary: String {
         summary
             .replacingOccurrences(of: "\n", with: " ")

@@ -29,9 +29,34 @@ enum SummaryFormatter {
         return bullets.isEmpty ? lines : bullets
     }
 
-    /// A compact single-line preview (markers/intro stripped) for teaser cards.
+    /// A compact single-line preview (markers/intro/citations stripped) for teaser cards.
     static func plainPreview(from text: String) -> String {
-        bullets(from: text).joined(separator: "  •  ")
+        citedBullets(from: text).map(\.text).joined(separator: "  •  ")
+    }
+
+    /// A bullet with its `[n]` paper citations extracted (1-based numbers
+    /// referencing the paper list the overview was generated from) and the
+    /// markers removed from the display text.
+    struct CitedBullet {
+        let text: String
+        let citations: [Int]
+    }
+
+    static func citedBullets(from text: String) -> [CitedBullet] {
+        bullets(from: text).map { bullet in
+            var cleaned = bullet
+            var numbers: [Int] = []
+            // Matches "[3]" and grouped forms like "[1, 4]".
+            while let range = cleaned.range(of: #"\s*\[\d{1,2}(\s*,\s*\d{1,2})*\]"#, options: .regularExpression) {
+                numbers.append(contentsOf: cleaned[range]
+                    .components(separatedBy: CharacterSet.decimalDigits.inverted)
+                    .compactMap { Int($0) })
+                cleaned.removeSubrange(range)
+            }
+            var seen = Set<Int>()
+            let unique = numbers.filter { seen.insert($0).inserted }
+            return CitedBullet(text: cleaned.trimmingCharacters(in: .whitespaces), citations: unique)
+        }
     }
 
     /// A bullet split into an optional bold lead-in (text before the first colon,
@@ -64,21 +89,52 @@ enum SummaryFormatter {
     }
 }
 
-/// Renders a summary as a tidy, spaced bullet list with bold lead-ins.
+/// Renders a summary as a tidy, spaced bullet list with bold lead-ins. When the
+/// papers the summary was generated from are provided, each bullet's `[n]`
+/// citations become tappable links to those papers (pushed via the enclosing
+/// stack's `navigationDestination(for: ArxivPaper.self)`).
 struct SummaryBulletsView: View {
     let text: String
+    var papers: [ArxivPaper] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(SummaryFormatter.bullets(from: text).enumerated()), id: \.offset) { _, bullet in
+            ForEach(Array(SummaryFormatter.citedBullets(from: text).enumerated()), id: \.offset) { _, bullet in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text("•")
                         .font(.body.weight(.bold))
                         .foregroundStyle(.tint)
-                    Text(SummaryFormatter.attributed(for: bullet))
-                        .font(.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(SummaryFormatter.attributed(for: bullet.text))
+                            .font(.body)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        citationLinks(for: bullet.citations)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The cited papers as compact tappable rows (silently drops out-of-range numbers).
+    @ViewBuilder
+    private func citationLinks(for citations: [Int]) -> some View {
+        let cited = citations.compactMap { number in
+            papers.indices.contains(number - 1) ? papers[number - 1] : nil
+        }
+        if !cited.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(cited) { paper in
+                    NavigationLink(value: paper) {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Image(systemName: "doc.text")
+                            Text(paper.cleanedTitle)
+                                .lineLimit(1)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

@@ -236,7 +236,7 @@ struct SummaryService {
         let body = items.enumerated()
             .map { index, item in "\(index + 1). \(item.title): \(item.summary)" }
             .joined(separator: "\n")
-        let ask = "Here are short summaries of today's papers on \(scope). Write 3–5 short, plain-language bullet points capturing the key themes and most notable findings. Respond with only the bullets, one per line starting with \"- \", with no introductory or closing sentence:\n\n\(body)"
+        let ask = "Here are short summaries of today's papers on \(scope). Write 3–5 short, plain-language bullet points capturing the key themes and most notable findings. End each bullet with the numbers of the papers it draws on, in square brackets like [2][5]. Respond with only the bullets, one per line starting with \"- \", with no introductory or closing sentence:\n\n\(body)"
 
         if let text = await tryLLM(system: system, prompt: ask, asJSON: false) {
             return SummaryResult(text: text, generatedByAI: true)

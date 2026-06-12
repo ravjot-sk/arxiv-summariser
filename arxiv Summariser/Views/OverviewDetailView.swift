@@ -4,6 +4,8 @@ struct OverviewDetailView: View {
     let text: String
     let scopeLabel: String
     let generatedByAI: Bool
+    /// The papers the overview was generated from, in citation order ([1] = first).
+    var papers: [ArxivPaper] = []
 
     var body: some View {
         ScrollView {
@@ -20,7 +22,7 @@ struct OverviewDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                SummaryBulletsView(text: text)
+                SummaryBulletsView(text: text, papers: papers)
             }
             .padding()
         }

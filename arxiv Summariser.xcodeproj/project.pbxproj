@@ -9,6 +9,11 @@
 /* Begin PBXBuildFile section */
 		4BC06D362FDAC5FB00973216 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D352FDAC5FB00973216 /* MLXLLM */; };
 		4BC06D382FDAC5FB00973216 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D372FDAC5FB00973216 /* MLXLMCommon */; };
+		4BC06D7F2FDB001000973216 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D7E2FDB001000973216 /* MLXVLM */; };
+		4BC06D822FDB122B00973216 /* Gemma4Swift in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D812FDB122B00973216 /* Gemma4Swift */; };
+		4BC06D862FDB122B00973216 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D852FDB122B00973216 /* MLXHuggingFace */; };
+		4BC06D882FDB122B00973216 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D872FDB122B00973216 /* HuggingFace */; };
+		4BC06D8A2FDB122B00973216 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 4BC06D892FDB122B00973216 /* Tokenizers */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +64,11 @@
 			files = (
 				4BC06D382FDAC5FB00973216 /* MLXLMCommon in Frameworks */,
 				4BC06D362FDAC5FB00973216 /* MLXLLM in Frameworks */,
+				4BC06D7F2FDB001000973216 /* MLXVLM in Frameworks */,
+				4BC06D862FDB122B00973216 /* MLXHuggingFace in Frameworks */,
+				4BC06D882FDB122B00973216 /* HuggingFace in Frameworks */,
+				4BC06D8A2FDB122B00973216 /* Tokenizers in Frameworks */,
+				4BC06D822FDB122B00973216 /* Gemma4Swift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +131,11 @@
 			packageProductDependencies = (
 				4BC06D352FDAC5FB00973216 /* MLXLLM */,
 				4BC06D372FDAC5FB00973216 /* MLXLMCommon */,
+				4BC06D7E2FDB001000973216 /* MLXVLM */,
+				4BC06D852FDB122B00973216 /* MLXHuggingFace */,
+				4BC06D872FDB122B00973216 /* HuggingFace */,
+				4BC06D892FDB122B00973216 /* Tokenizers */,
+				4BC06D812FDB122B00973216 /* Gemma4Swift */,
 			);
 			productName = "arxiv Summariser";
 			productReference = 4BEB11CE2FC7A3260032FDC3 /* arxiv Summariser.app */;
@@ -205,7 +220,10 @@
 			mainGroup = 4BEB11C52FC7A3260032FDC3;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */,
+				4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				4BC06D832FDB122B00973216 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
+				4BC06D842FDB122B00973216 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				4BC06D802FDB122B00973216 /* XCRemoteSwiftPackageReference "gemma-4-swift-mlx" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4BEB11CF2FC7A3260032FDC3 /* Products */;
@@ -594,12 +612,36 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */ = {
+		4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ml-explore/mlx-swift-examples";
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		4BC06D802FDB122B00973216 /* XCRemoteSwiftPackageReference "gemma-4-swift-mlx" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ravjot-sk/gemma-4-swift-mlx";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		4BC06D832FDB122B00973216 /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-huggingface";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.29.1;
+				minimumVersion = 0.9.0;
+			};
+		};
+		4BC06D842FDB122B00973216 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -607,13 +649,38 @@
 /* Begin XCSwiftPackageProductDependency section */
 		4BC06D352FDAC5FB00973216 /* MLXLLM */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
 			productName = MLXLLM;
 		};
 		4BC06D372FDAC5FB00973216 /* MLXLMCommon */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-examples" */;
+			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
 			productName = MLXLMCommon;
+		};
+		4BC06D7E2FDB001000973216 /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXVLM;
+		};
+		4BC06D812FDB122B00973216 /* Gemma4Swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D802FDB122B00973216 /* XCRemoteSwiftPackageReference "gemma-4-swift-mlx" */;
+			productName = Gemma4Swift;
+		};
+		4BC06D852FDB122B00973216 /* MLXHuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D342FDAC5FB00973216 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXHuggingFace;
+		};
+		4BC06D872FDB122B00973216 /* HuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D832FDB122B00973216 /* XCRemoteSwiftPackageReference "swift-huggingface" */;
+			productName = HuggingFace;
+		};
+		4BC06D892FDB122B00973216 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4BC06D842FDB122B00973216 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

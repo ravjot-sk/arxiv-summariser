@@ -51,11 +51,12 @@ struct PaperSummaryStore {
         }
     }
 
-    /// The cached (title, summary) pairs for the given papers, skipping any not yet cached.
-    func summaries(for papers: [ArxivPaper]) -> [(title: String, summary: String)] {
+    /// The papers that already have a cached summary, paired with it, in input
+    /// order — this order defines the `[n]` citation numbering in the overview.
+    func summaryItems(for papers: [ArxivPaper]) -> [(paper: ArxivPaper, summary: String)] {
         papers.compactMap { paper in
             guard let cached = cachedSummary(for: paper.id) else { return nil }
-            return (paper.cleanedTitle, cached.summaryText)
+            return (paper, cached.summaryText)
         }
     }
 

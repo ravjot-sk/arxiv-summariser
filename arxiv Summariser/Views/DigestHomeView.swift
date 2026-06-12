@@ -12,13 +12,33 @@ struct DigestHomeView: View {
 
     @State private var overviewText: String?
     @State private var overviewIsAI = false
+    /// The papers the current overview was generated from, in citation order
+    /// ([1] = first) — lets the detail view link bullets back to their papers.
+    @State private var overviewPapers: [ArxivPaper] = []
     @State private var isOverviewLoading = false
     @State private var overviewTask: Task<Void, Never>?
     /// Identifies the inputs the current `overviewText` was generated for, so we only
     /// regenerate when the keyword selection or the underlying papers actually change.
     @State private var overviewSignature: String?
     /// Reduce results cached per keyword-combination, so revisiting a filter is instant.
-    @State private var overviewCache: [String: SummaryResult] = [:]
+    @State private var overviewCache: [String: OverviewResult] = [:]
+
+    /// An overview plus the papers its `[n]` citations refer to.
+    private struct OverviewResult {
+        let text: String
+        let generatedByAI: Bool
+        let papers: [ArxivPaper]
+    }
+
+    /// Value pushed for the overview detail screen. Must be value-based like the
+    /// paper pushes: mixing `NavigationLink(value:)` with view-destination links
+    /// in one stack breaks push ordering (papers ended up under the overview).
+    private struct OverviewRoute: Hashable {
+        let text: String
+        let scopeLabel: String
+        let generatedByAI: Bool
+        let papers: [ArxivPaper]
+    }
 
     /// Per-paper "map" phase: generating the cached summaries the overview reduces over.
     @State private var isPreparing = false
@@ -89,6 +109,9 @@ struct DigestHomeView: View {
             }
             .navigationTitle("Today")
             .navigationDestination(for: ArxivPaper.self) { PaperDetailView(paper: $0) }
+            .navigationDestination(for: OverviewRoute.self) {
+                OverviewDetailView(text: $0.text, scopeLabel: $0.scopeLabel, generatedByAI: $0.generatedByAI, papers: $0.papers)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -171,9 +194,12 @@ struct DigestHomeView: View {
             generatedByAI: overviewIsAI
         )
         if let text = overviewText, loadingMessage == nil {
-            NavigationLink {
-                OverviewDetailView(text: text, scopeLabel: overviewScope, generatedByAI: overviewIsAI)
-            } label: {
+            NavigationLink(value: OverviewRoute(
+                text: text,
+                scopeLabel: overviewScope,
+                generatedByAI: overviewIsAI,
+                papers: overviewPapers
+            )) {
                 card
             }
             .buttonStyle(.plain)
@@ -316,6 +342,7 @@ struct DigestHomeView: View {
         if let cached = overviewCache[signature] {
             overviewText = cached.text
             overviewIsAI = cached.generatedByAI
+            overviewPapers = cached.papers
             isOverviewLoading = false
             return
         }
@@ -330,14 +357,22 @@ struct DigestHomeView: View {
             // Defensive — normally already warm from prepareSummaries()/refresh().
             await store.ensureSummaries(for: papersSnapshot)
             if Task.isCancelled { return }
+            // The item order defines the [n] citation numbering in the bullets.
+            let items = store.summaryItems(for: papersSnapshot)
             let result = await SummaryService.shared.combineSummaries(
-                store.summaries(for: papersSnapshot),
+                items.map { (title: $0.paper.cleanedTitle, summary: $0.summary) },
                 scope: scope
             )
             if Task.isCancelled { return }
+            let citationPapers = result.generatedByAI ? items.map(\.paper) : []
             overviewText = result.text
             overviewIsAI = result.generatedByAI
-            overviewCache[signature] = result
+            overviewPapers = citationPapers
+            overviewCache[signature] = OverviewResult(
+                text: result.text,
+                generatedByAI: result.generatedByAI,
+                papers: citationPapers
+            )
             isOverviewLoading = false
         }
     }
